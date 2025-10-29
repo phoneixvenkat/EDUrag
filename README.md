@@ -31,13 +31,20 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 # 5️⃣ Run frontend (Streamlit)
 $env:BACKEND_URL="http://127.0.0.1:8000"
 streamlit run app/app_ui.py
-🧩 API Endpoints
-Method	Route	Description
-POST	/v1/upload	Upload a document and index it
-POST	/v1/query	Retrieve top chunks
-POST	/v1/answer	Get generated answers with citations
-POST	/v1/quiz	Auto-generate quizzes
-GET	/healthz	Health check
+
+feedback.md — user feedback plan
+
+deliverables.md — final submission list
+
+| Method | Route        | Description                          |
+| :----: | :----------- | :----------------------------------- |
+| `POST` | `/v1/upload` | Upload a document and index it       |
+| `POST` | `/v1/query`  | Retrieve top chunks                  |
+| `POST` | `/v1/answer` | Get generated answers with citations |
+| `POST` | `/v1/quiz`   | Auto-generate quizzes                |
+|  `GET` | `/healthz`   | Health check                         |
+
+
 📚 Docs
 
 See /docs folder for:
