@@ -1,0 +1,23 @@
+﻿# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.env
+.env.*
+# runtime data
+uploaded_files/
+data/
+chroma/
+chroma-db/
+index/
+cache/
+outputs/
+# Streamlit/VSCode/OS
+.streamlit/secrets.toml
+.vscode/
+.DS_Store
+Thumbs.db
+.huggingface/
+.cache/
+.ipynb_checkpoints/
