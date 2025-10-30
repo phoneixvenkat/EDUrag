@@ -1,30 +1,40 @@
-from fastapi import APIRouter
-from pydantic import BaseModel, Field
-from typing import Literal, List, Dict, Any
+# app/api/routes_answer.py
+import os
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+from typing import Dict, Any, List
 
-from app.services.retriever import retrieve
-from app.services.generator import generate_answer
+from transformers import pipeline
+from app.services.retriever import retrieve_chunks
 
-router = APIRouter(tags=["answer"])
+router = APIRouter(tags=["qa"])
 
-class AnswerRequest(BaseModel):
-    question: str = Field(..., min_length=1)
-    top_k: int = Field(8, ge=1, le=50)
-    mode: Literal["semantic", "hybrid"] = "hybrid"
-    alpha: float = Field(0.6, ge=0.0, le=1.0)
+MODEL = os.getenv("ANSWER_MODEL", "sshleifer/distilbart-cnn-12-6")  # light & fast
+SUM = pipeline("summarization", model=MODEL)
+
+class AnswerReq(BaseModel):
+    question: str
+    top_k: int = 8
+    mode: str = "hybrid"
 
 @router.post("/answer")
-def answer(req: AnswerRequest):
-    passages = retrieve(req.question, top_k=req.top_k, mode=req.mode, alpha=req.alpha)
-    ctx = " ".join([p["text"] for p in passages])[:3000]
-    ans = generate_answer(req.question, ctx)
-    # include compact sources
-    sources = [
-        {
-            "source": p.get("meta", {}).get("source"),
-            "page": p.get("meta", {}).get("page"),
-            "preview": p["text"][:220]
-        }
-        for p in passages[:3]
-    ]
-    return {"answer": ans, "sources": sources}
+def answer(req: AnswerReq):
+    hits = retrieve_chunks(req.question, top_k=req.top_k, mode=req.mode)
+    context = "\n".join([h["text"] for h in hits])[:4000]  # keep short for speed
+
+    if not context.strip():
+        raise HTTPException(404, "No context found. Upload a document first.")
+
+    summary = SUM(context, max_length=160, min_length=60, do_sample=False)[0]["summary_text"]
+
+    return {
+        "answer": summary,
+        "sources": [
+            {
+                "source": h["meta"]["source"],
+                "page": h["meta"].get("page", -1),
+                "score": h["score"],
+                "snippet": h["text"][:160]
+            } for h in hits
+        ],
+    }

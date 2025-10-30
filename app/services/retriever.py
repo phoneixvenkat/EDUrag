@@ -1,43 +1,46 @@
-from typing import List, Literal
-from app.services.vectorstore import vs_query
-from app.services.bm25_index import bm25_query
+# app/services/retriever.py
+from typing import List, Dict, Any
+from rank_bm25 import BM25Okapi
+import re
 
-def _norm(items, higher_is_better: bool):
-    if not items:
-        return items
-    vals = [x["score"] for x in items]
-    lo, hi = min(vals), max(vals)
-    for x in items:
-        if hi == lo:
-            x["_norm"] = 0.5
-        else:
-            v = x["score"]
-            x["_norm"] = (v - lo) / (hi - lo) if higher_is_better else (hi - v) / (hi - lo)
-    return items
+from app.services.vectorstore import vs_query, COLL
 
-def retrieve(query: str, top_k: int = 8, mode: Literal["semantic", "hybrid"]="hybrid", alpha: float=0.6):
+def _tokenize(txt: str) -> List[str]:
+    return re.findall(r"\w+", txt.lower())
+
+def retrieve_chunks(query: str, top_k: int = 8, mode: str = "hybrid") -> List[Dict[str, Any]]:
+    # vector
+    v_hits = vs_query(query, top_k=top_k)
     if mode == "semantic":
-        dense = vs_query(query, top_k=top_k)  # distance (lower is better)
-        dense = _norm(dense, higher_is_better=False)
-        for d in dense:
-            d["score"] = d["_norm"]
-        dense.sort(key=lambda x: x["score"], reverse=True)
-        return dense[:top_k]
+        return v_hits
 
-    dense = _norm(vs_query(query, top_k=top_k), higher_is_better=False)
-    lex = _norm(bm25_query(query, top_k=top_k), higher_is_better=True)
+    # bm25 over the same candidate pool (quick heuristic)
+    all_docs = COLL.get()  # small scale
+    corpus = all_docs["documents"]
+    if not corpus:
+        return v_hits
 
-    fused = {}
-    for x in dense:
-        fused[x["text"]] = {"text": x["text"], "meta": x.get("meta", {}), "dense": x["_norm"], "lex": 0.0}
-    for x in lex:
-        if x["text"] in fused:
-            fused[x["text"]]["lex"] = x["_norm"]
-        else:
-            fused[x["text"]] = {"text": x["text"], "meta": x.get("meta", {}), "dense": 0.0, "lex": x["_norm"]}
+    bm25 = BM25Okapi([_tokenize(c) for c in corpus])
+    scores = bm25.get_scores(_tokenize(query))
+    # pick top_k indices
+    idxs = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:top_k]
+    b_hits = [{
+        "id": all_docs["ids"][i],
+        "text": all_docs["documents"][i],
+        "meta": all_docs["metadatas"][i],
+        "score": float(scores[i])
+    } for i in idxs]
 
-    items = list(fused.values())
-    for it in items:
-        it["score"] = alpha * it["dense"] + (1 - alpha) * it["lex"]
-    items.sort(key=lambda x: x["score"], reverse=True)
-    return items[:top_k]
+    # simple hybrid: interleave
+    out = []
+    for a, b in zip(v_hits, b_hits):
+        out.append(a)
+        out.append(b)
+    # remove dupes by id
+    seen, merged = set(), []
+    for h in out:
+        if h["id"] in seen: 
+            continue
+        merged.append(h); seen.add(h["id"])
+        if len(merged) >= top_k: break
+    return merged

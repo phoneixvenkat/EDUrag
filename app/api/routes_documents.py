@@ -1,102 +1,86 @@
 # app/api/routes_documents.py
 from fastapi import APIRouter, UploadFile, File, HTTPException
-from typing import Dict, Any, List, Tuple
+from pydantic import BaseModel
+from pathlib import Path
+from typing import List, Dict, Any, Tuple
+import uuid
+import shutil
 import os
 
 from app.services.extractor import extract_text
 from app.services.chunker import chunk_text
-from app.services.vectorstore import vs_add_documents, vs_stats
-from app.services.bm25_index import bm25_add_documents
+from app.services.vectorstore import vs_add, vs_list_docs, vs_delete_doc, vs_clear
+
+UPLOAD_DIR = Path("uploaded_files")
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 router = APIRouter(tags=["documents"])
 
-UPLOAD_DIR = "uploaded_files"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+class UploadResponse(BaseModel):
+    filename: str
+    saved_to: str
+    chunks_indexed: int
+    vector_ids: List[str]
+    vector_stats: Dict[str, Any]
 
-# In-memory registry (for /documents listing)
-_DOCS: List[Dict[str, Any]] = []  # {filename, path, chunks}
-
-def _coerce_extract_result(res) -> Tuple[str, List[tuple]]:
-    """
-    Accepts res as: text | (text,) | (text, spans) | (text, spans, ...)
-    Returns (text, spans) where spans is [(start, end, page_no), ...] or a single-span default.
-    """
-    # Only text
-    if not isinstance(res, tuple):
-        text = str(res or "")
-        return text, [(0, len(text), 1)]
-    # Tuple-like
-    if len(res) == 0:
-        return "", [(0, 0, 1)]
-    if len(res) == 1:
-        text = res[0] or ""
-        return text, [(0, len(text), 1)]
-    # len >= 2: take the first two
-    text = res[0] or ""
-    spans = res[1] or []
-    # Normalize spans shape
-    if not isinstance(spans, list) or (spans and not isinstance(spans[0], tuple)):
-        # fallback to single-span
-        spans = [(0, len(text), 1)]
-    return text, spans
-
-@router.post("/upload")
+@router.post("/upload", response_model=UploadResponse)
 async def upload_document(file: UploadFile = File(...)):
-    if file.content_type not in {"application/pdf", "text/plain"}:
-        raise HTTPException(status_code=415, detail="Only PDF or TXT supported")
+    if file.content_type not in ("application/pdf", "text/plain"):
+        raise HTTPException(415, f"Unsupported type: {file.content_type}")
 
-    path = os.path.join(UPLOAD_DIR, file.filename)
-    # Save the upload once
-    blob = await file.read()
-    with open(path, "wb") as f:
-        f.write(blob)
+    dest = UPLOAD_DIR / file.filename
+    with dest.open("wb") as f:
+        shutil.copyfileobj(file.file, f)
 
-    # Extract (be tolerant to different return shapes)
-    res = extract_text(path, mime=file.content_type)
-    text, page_spans = _coerce_extract_result(res)
-
+    # Unified extractor returns: text, [(start,end,page)]
+    text, page_spans = extract_text(dest, mime=file.content_type)
     if not text.strip():
-        raise HTTPException(status_code=422, detail="No text extracted from document.")
+        raise HTTPException(400, "No extractable text in the file.")
 
-    # Chunk
-    chunks = chunk_text(text, max_chars=1200, overlap=150)
+    chunks = chunk_text(text)
+    # attach page numbers by span lookup
+    def page_of(start_idx: int) -> int:
+        for (s,e,p) in page_spans:
+            if s <= start_idx < e: 
+                return p
+        return -1
 
-    # Map chunk positions → pages (best effort)
-    def page_for_segment(start_char: int, end_char: int) -> int:
-        best_page, best_overlap = 1, 0
-        for s, e, p in page_spans:
-            ov = max(0, min(end_char, e) - max(start_char, s))
-            if ov > best_overlap:
-                best_overlap, best_page = ov, p
-        return best_page
+    docs = []
+    for c in chunks:
+        meta = {
+            "source": file.filename,
+            "path": str(dest),
+            "page": page_of(c["start"]),
+        }
+        docs.append({"id": str(uuid.uuid4()), "text": c["text"], "meta": meta})
 
-    metadatas = []
-    offset = 0
-    for ch in chunks:
-        start = text.find(ch, offset)
-        if start < 0:
-            start = offset
-        end = start + len(ch)
-        page = page_for_segment(start, end)
-        metadatas.append({"source": file.filename, "page": page})
-        offset = end
+    vec_ids, stats = vs_add(docs)
+    return UploadResponse(
+        filename=file.filename,
+        saved_to=str(dest),
+        chunks_indexed=len(docs),
+        vector_ids=vec_ids,
+        vector_stats=stats,
+    )
 
-    ids = vs_add_documents(chunks, metadatas=metadatas)
-    bm25_add_documents(chunks, metadatas)
+class DocList(BaseModel):
+    documents: List[Dict[str, Any]]
 
-    _DOCS.append({"filename": file.filename, "path": path, "chunks": len(chunks)})
-
-    return {
-        "filename": file.filename,
-        "saved_to": path,
-        "chunks_indexed": len(chunks),
-        "vector_ids": ids,
-        "vector_stats": vs_stats(),
-    }
-
-@router.get("/documents")
+@router.get("/documents", response_model=DocList)
 def list_documents():
-    return {
-        "documents": _DOCS,
-        "vector_stats": vs_stats(),
-    }
+    return {"documents": vs_list_docs()}
+
+class DeleteReq(BaseModel):
+    path: str
+
+@router.post("/documents/delete")
+def delete_document(req: DeleteReq):
+    ok = vs_delete_doc(req.path)
+    if not ok:
+        raise HTTPException(404, "Document not found in index.")
+    return {"ok": True}
+
+@router.post("/documents/clear")
+def clear_all():
+    vs_clear()
+    return {"ok": True}
