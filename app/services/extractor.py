@@ -1,26 +1,24 @@
 # app/services/extractor.py
-from typing import Tuple, List
-from pathlib import Path
-from PyPDF2 import PdfReader
+from typing import List, Dict, Any
+from uuid import uuid4
+from fastapi import UploadFile
+from pypdf import PdfReader
 
-def extract_text(path: Path, mime: str) -> Tuple[str, List[tuple]]:
-    """
-    Returns:
-      full_text (str)
-      page_spans: list of (start_idx, end_idx, page_no)
-    """
-    text = ""
-    spans = []
-    if mime == "application/pdf":
-        reader = PdfReader(str(path))
-        cursor = 0
-        for i, page in enumerate(reader.pages, start=1):
-            t = page.extract_text() or ""
-            start, end = cursor, cursor + len(t)
-            spans.append((start, end, i))
-            text += t
-            cursor = end
-    else:
-        t = path.read_text(encoding="utf-8", errors="ignore")
-        text, spans = t, [(0, len(t), 1)]
-    return text, spans
+async def extract_docs_from_upload(file: UploadFile) -> List[Dict[str, Any]]:
+    # Read the bytes
+    data = await file.read()
+    # Save to temp in-memory and parse with pypdf
+    from io import BytesIO
+    pdf = PdfReader(BytesIO(data))
+    docs: List[Dict[str, Any]] = []
+    for i, page in enumerate(pdf.pages, start=1):
+        text = page.extract_text() or ""
+        text = text.strip()
+        if not text:
+            continue
+        docs.append({
+            "id": str(uuid4()),
+            "text": text,
+            "meta": {"source": "upload", "path": file.filename, "page": i}
+        })
+    return docs

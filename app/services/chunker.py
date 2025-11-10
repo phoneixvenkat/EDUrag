@@ -1,13 +1,17 @@
-# app/services/chunker.py
-from typing import List, Dict
+from __future__ import annotations
+from typing import List
 
-def chunk_text(text: str, size: int = 500, overlap: int = 100) -> List[Dict]:
-    out = []
+def chunk_document(text: str, chunk_size: int = 800, overlap: int = 120) -> List[str]:
+    text = (text or "").strip()
+    if not text:
+        return []
+    words = text.split()
+    chunks: List[str] = []
     i = 0
-    while i < len(text):
-        j = min(i + size, len(text))
-        out.append({"text": text[i:j], "start": i, "end": j})
-        i = j - overlap
-        if i <= 0: 
-            i = j
-    return out
+    while i < len(words):
+        chunk_words = words[i:i+chunk_size]
+        chunks.append(" ".join(chunk_words))
+        if i + chunk_size >= len(words):
+            break
+        i += (chunk_size - overlap)
+    return chunks

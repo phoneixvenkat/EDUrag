@@ -1,0 +1,10 @@
+What is the main objective of our EduRAG system?
+How does hybrid retrieval differ from semantic-only retrieval?
+Explain chunk size and overlap and their trade-offs.
+What is the role of Chroma in this system?
+When would BM25 outperform embeddings?
+How do we measure hallucinations in RAG?
+Describe the prompt used for grounding and citations.
+Compare costs/latency between the three models we test.
+Explain our quiz generation approach and limitations.
+What are key failure modes in our current pipeline?

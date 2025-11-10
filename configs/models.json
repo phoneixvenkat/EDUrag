@@ -1,0 +1,20 @@
+[
+  {
+    "name": "llama3-8b-instruct (Ollama)",
+    "base_url": "http://127.0.0.1:11434/v1",
+    "api_key": "ollama",
+    "model": "llama3:instruct"
+  },
+  {
+    "name": "mistral-7b-instruct (HF TGI)",
+    "base_url": "https://api.your-tgi-host/v1",
+    "api_key": "YOUR_TGI_TOKEN",
+    "model": "mistral-7b-instruct"
+  },
+  {
+    "name": "phi-3-mini (OpenAI)",
+    "base_url": "https://api.openai.com/v1",
+    "api_key": "YOUR_API_KEY",
+    "model": "phi3"
+  }
+]

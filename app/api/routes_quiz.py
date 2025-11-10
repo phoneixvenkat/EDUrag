@@ -3,7 +3,6 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any
 import random, re
-
 from app.services.retriever import retrieve_chunks
 
 router = APIRouter(tags=["quiz"])

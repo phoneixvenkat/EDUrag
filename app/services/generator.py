@@ -1,16 +1,32 @@
-from transformers import pipeline
+# app/services/generator.py
+from typing import List
+from app.services.llm import chat
 
-# light summarizer; downloads on first use
-_summarizer = pipeline("summarization", model="facebook/bart-base")
+SYS_RAG = (
+    "You are a helpful assistant. Answer ONLY using the provided context. "
+    "If the answer isn't in the context, say you don't know."
+)
 
-def summarize_text(text: str) -> str:
-    text = (text or "")[:4000]
-    if not text.strip():
-        return "No content to summarize."
-    out = _summarizer(text, max_length=180, min_length=60, do_sample=False)
-    return out[0]["summary_text"]
+def _mk_context_block(contexts: List[str], max_chars: int = 8000) -> str:
+    joined, used = "", 0
+    for c in contexts:
+        if used + len(c) + 2 > max_chars: break
+        joined += f"- {c}\n"
+        used += len(c) + 2
+    return joined.strip()
 
-def generate_answer(question: str, context: str) -> str:
-    prompt = f"Answer the question concisely based on the context.\n\nQuestion: {question}\n\nContext: {context}\n\nAnswer:"
-    out = _summarizer(prompt[:4000], max_length=160, min_length=40, do_sample=False)
-    return out[0]["summary_text"]
+def gen_answer(question: str, contexts: List[str]) -> str:
+    ctx_block = _mk_context_block(contexts)
+    messages = [
+        {"role": "system", "content": SYS_RAG},
+        {"role": "user", "content": f"Context:\n{ctx_block}\n\nQuestion: {question}\nAnswer succinctly."}
+    ]
+    return chat(messages)
+
+def summarize_text(chunks: List[str], max_tokens: int = 250) -> str:
+    ctx_block = _mk_context_block(chunks)
+    messages = [
+        {"role": "system", "content": "You are a concise scientific summarizer."},
+        {"role": "user", "content": f"Summarize the following corpus in <= {max_tokens} tokens:\n{ctx_block}"}
+    ]
+    return chat(messages)

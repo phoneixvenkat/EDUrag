@@ -1,20 +1,20 @@
+# app/api/routes_summarize.py
 from fastapi import APIRouter
-from pydantic import BaseModel, Field
-from typing import Optional
-
+from pydantic import BaseModel
+from typing import Dict, Any
 from app.services.vectorstore import vs_dump_all_docs
 from app.services.generator import summarize_text
 
-router = APIRouter(tags=["summarize"])
+router = APIRouter(prefix="/v1", tags=["summarize"])
 
-class SummarizeRequest(BaseModel):
-    doc_id: Optional[str] = Field(None, description="Optional: future use if you track per-doc IDs")
+class SummIn(BaseModel):
+    max_tokens: int = 250
 
 @router.post("/summarize")
-def summarize(req: SummarizeRequest):
-    # simple: summarize everything we have (or extend to per-doc)
-    full_text = " ".join([d["text"] for d in vs_dump_all_docs()])[:8000]
-    if not full_text.strip():
-        return {"summary": "No content indexed yet."}
-    summ = summarize_text(full_text)
-    return {"summary": summ}
+def summarize(payload: SummIn) -> Dict[str, Any]:
+    rows = vs_dump_all_docs()
+    texts = [r["text"] for r in rows]
+    if not texts:
+        return {"summary": "", "note": "No documents indexed."}
+    summary = summarize_text(texts, max_tokens=payload.max_tokens)
+    return {"summary": summary, "chunks": len(texts)}

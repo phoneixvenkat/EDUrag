@@ -1,0 +1,12 @@
+{
+  "backend_url": "http://127.0.0.1:8000",
+  "top_k": 8,
+  "mode": "hybrid",
+  "questions_file": "questions.txt",
+  "models": [
+    "llama3-8b-instruct (Ollama)",
+    "mistral-7b-instruct (HF TGI)",
+    "phi-3-mini (OpenAI)"
+  ],
+  "results": []
+}

@@ -1,14 +1,15 @@
 from sentence_transformers import SentenceTransformer
 from typing import List
 
-_model = None
+# Load pre-trained sentence-transformer model
+EMB = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
 
-def get_model(name: str = "all-MiniLM-L6-v2"):
-    global _model
-    if _model is None:
-        _model = SentenceTransformer(name)
-    return _model
+def embed_chunks(chunks: List[str]) -> List[List[float]]:
+    """
+    Convert text chunks into embeddings (vector representation).
 
-def embed_texts(texts: List[str]):
-    model = get_model()
-    return model.encode(texts, normalize_embeddings=True)
+    :param chunks: A list of document chunks.
+    :return: A list of embeddings (vectors) for each chunk.
+    """
+    embeddings = EMB.encode(chunks, normalize_embeddings=True).tolist()
+    return embeddings

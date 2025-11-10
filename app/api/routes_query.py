@@ -2,17 +2,16 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import List, Dict, Any
-
 from app.services.retriever import retrieve_chunks
 
-router = APIRouter(tags=["qa"])
+router = APIRouter(prefix="/v1", tags=["query"])
 
-class QueryReq(BaseModel):
+class QueryIn(BaseModel):
     query: str
-    top_k: int = 8
-    mode: str = "hybrid"  # "hybrid" | "semantic"
+    top_k: int = 6
+    mode: str = "hybrid"
 
 @router.post("/query")
-def query(req: QueryReq):
-    hits = retrieve_chunks(req.query, top_k=req.top_k, mode=req.mode)
-    return {"query": req.query, "results": hits}
+def query(q: QueryIn) -> Dict[str, Any]:
+    results = retrieve_chunks(q.query, top_k=q.top_k, mode=q.mode)
+    return {"query": q.query, "results": results}
