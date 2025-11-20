@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>EDUrag – RAG Console</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="page">
+    <h1 class="title">EDUrag – RAG Console</h1>
+    <p class="subtitle">
+      Upload a paper → test retriever → ask LLM-grounded questions → summarize.
+    </p>
+
+    <!-- 1. Upload a Paper -->
+    <section class="card">
+      <h2>1. Upload a Paper</h2>
+
+      <!-- Paper link section (NEW) -->
+      <div class="field">
+        <label for="paperLinkInput">Paper link (optional)</label>
+        <input
+          id="paperLinkInput"
+          type="text"
+          placeholder="https://arxiv.org/abs/1706.03762"
+        />
+        <small class="hint">
+          Just for reference – stored only in the UI and shown in the answer/summary sections.
+        </small>
+      </div>
+
+      <div class="field">
+        <label for="pdfFile">PDF file</label>
+        <input id="pdfFile" type="file" accept="application/pdf" />
+      </div>
+
+      <button id="btnUpload" class="btn primary">Upload &amp; Index</button>
+
+      <pre id="uploadStatus" class="output small"></pre>
+    </section>
+
+    <!-- 2. Retrieve Chunks -->
+    <section class="card">
+      <h2>2. Retrieve Chunks (Vector Search)</h2>
+      <p class="hint">Test the retriever only — no LLM.</p>
+
+      <div class="field">
+        <label for="retrieverQuestion">Query</label>
+        <input
+          id="retrieverQuestion"
+          type="text"
+          placeholder="e.g. What is the main idea of the paper?"
+        />
+      </div>
+
+      <div class="row">
+        <div class="field field-inline">
+          <label for="retrieverTopK">Top-k</label>
+          <input id="retrieverTopK" type="number" min="1" value="6" />
+        </div>
+
+        <div class="field field-inline">
+          <label for="retrieverMode">Retrieval mode</label>
+          <select id="retrieverMode">
+            <option value="hybrid" selected>hybrid</option>
+            <option value="semantic">semantic</option>
+            <option value="keyword">keyword</option>
+          </select>
+        </div>
+
+        <button id="btnRetrieverQuery" class="btn">Query</button>
+      </div>
+
+      <pre id="retrieverResults" class="output"></pre>
+    </section>
+
+    <!-- 3. Ask a Question (LLM-grounded) -->
+    <section class="card">
+      <h2>3. Ask a Question (LLM-grounded)</h2>
+
+      <div class="field">
+        <label for="qaQuestion">Question</label>
+        <input
+          id="qaQuestion"
+          type="text"
+          placeholder='e.g. "What problem does the Transformer model try to solve?"'
+        />
+      </div>
+
+      <div class="row">
+        <div class="field field-inline">
+          <label for="qaTopK">Top-k chunks</label>
+          <input id="qaTopK" type="number" min="1" value="6" />
+        </div>
+
+        <div class="field field-inline">
+          <label for="qaMode">Retrieval mode</label>
+          <select id="qaMode">
+            <option value="hybrid" selected>hybrid</option>
+            <option value="semantic">semantic</option>
+            <option value="keyword">keyword</option>
+          </select>
+        </div>
+
+        <div class="field field-inline">
+          <label for="qaModel">LLM model (for comparison)</label>
+          <select id="qaModel">
+            <option value="mistral" selected>mistral (Ollama)</option>
+            <option value="llama3">llama3</option>
+            <option value="phi3">phi3</option>
+          </select>
+        </div>
+
+        <button id="btnGetAnswer" class="btn primary">Get Answer</button>
+      </div>
+
+      <div class="field">
+        <label>Answer</label>
+        <pre id="qaAnswer" class="output"></pre>
+      </div>
+
+      <div class="field">
+        <label>Sources Used</label>
+        <pre id="qaSources" class="output small"></pre>
+      </div>
+    </section>
+
+    <!-- 4. Summarize Corpus -->
+    <section class="card">
+      <h2>4. Summarize Corpus</h2>
+
+      <div class="row">
+        <div class="field field-inline">
+          <label for="sumMaxChunks">Max chunks</label>
+          <input id="sumMaxChunks" type="number" min="1" value="12" />
+        </div>
+
+        <div class="field field-inline">
+          <label class="checkbox-label">
+            <input type="checkbox" id="sumIncludeLink" checked />
+            Include paper link at top
+          </label>
+        </div>
+
+        <button id="btnSummarize" class="btn">Summarize</button>
+      </div>
+
+      <div class="field">
+        <label>Summary</label>
+        <pre id="sumOutput" class="output"></pre>
+      </div>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>

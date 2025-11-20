@@ -1,20 +1,20 @@
 # app/api/routes_summarize.py
+
 from fastapi import APIRouter
-from pydantic import BaseModel
-from typing import Dict, Any
-from app.services.vectorstore import vs_dump_all_docs
-from app.services.generator import summarize_text
 
-router = APIRouter(prefix="/v1", tags=["summarize"])
+from app.core.schemas import SummarizeRequest, SummarizeResponse
+from app.services.generator import gen_summary
 
-class SummIn(BaseModel):
-    max_tokens: int = 250
+# This router gets mounted in main.py with prefix="/v1"
+router = APIRouter(tags=["summarize"])
 
-@router.post("/summarize")
-def summarize(payload: SummIn) -> Dict[str, Any]:
-    rows = vs_dump_all_docs()
-    texts = [r["text"] for r in rows]
-    if not texts:
-        return {"summary": "", "note": "No documents indexed."}
-    summary = summarize_text(texts, max_tokens=payload.max_tokens)
-    return {"summary": summary, "chunks": len(texts)}
+
+@router.post("/summarize", response_model=SummarizeResponse)
+def summarize(req: SummarizeRequest) -> SummarizeResponse:
+    """
+    Summarize the documents stored in the vectorstore.
+
+    Uses at most `max_chunks` chunks from Chroma (from SummarizeRequest).
+    """
+    summary_text = gen_summary(max_chunks=req.max_chunks)
+    return SummarizeResponse(summary=summary_text)
